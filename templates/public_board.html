@@ -1,0 +1,21 @@
+<html>
+<body>
+<h1>Public notes:</h1>
+
+{% if notes|length > 0 %}
+<ul>
+{% for note in notes %}
+  <li><a href="{{ url_for('render') }}/{{note.0}}"> Note {{ note.0 }} -> {{ note.1 }}</a></li>
+{% endfor %}
+</ul>
+
+{% endif %}
+
+<form action={{ url_for('profile') }}>
+  <input type="submit" value="Go back" />
+</form>
+<form action={{ url_for('logout') }}>
+  <input type="submit" value="Log out" />
+</form>
+</body>
+</html>

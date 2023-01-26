@@ -1,0 +1,18 @@
+<html>
+<body>
+<h1> Your rendered Markdown: </h1>
+{{ rendered | safe }}
+<br>
+{% if is_encrypted == 1 %}
+  <form action={{ url_for('render') }}/{{note_id}} method="post">
+    <label for="encryption_password">Type password to decrypt: </label>
+    <input type="password" id="encryption_password" name="encryption_password">
+    <input type="submit" value="Decrypt!" />
+  </form>
+<br>
+{% endif %}
+<form action={{ url_for('profile') }}>
+  <input type="submit" value="Go back" />
+</form>
+</body>
+</html>

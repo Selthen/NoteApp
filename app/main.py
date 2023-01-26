@@ -1,11 +1,13 @@
 import os
 import sqlite3
+
 import markdown
 from flask import Flask, render_template, request, redirect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from passlib.hash import sha256_crypt
+from flask_wtf.csrf import CSRFProtect
 from bleach import clean
 from utils import *
 
@@ -15,12 +17,8 @@ app = Flask(__name__)
 login_manager = LoginManager()
 login_manager.init_app(app)
 
-limiter = Limiter(
-    get_remote_address,
-    app=app,
-    default_limits=["1/second"],
-    storage_uri="memory://",
-)
+csrf = CSRFProtect()
+csrf.init_app(app)
 
 app.secret_key = os.getenv('APP_SECRET_KEY')
 
@@ -28,11 +26,12 @@ app.secret_key = os.getenv('APP_SECRET_KEY')
 if app.secret_key is None:
     app.secret_key = "206363ef77d567cc511df5098695d2b85058952afd5e2b1eecd5aed981805e60"
 
-database_ref = "./sqlite3.db"
-sha256_rounds = 643346
-pbkdf2_rounds = 1111111
-allowed_tags = ['p', 'br', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'strong', 'em', 'a', 'img']
-allowed_attributes = {'a': ['href', 'title'], 'img': ['src', 'alt']}
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["1/second"],
+    storage_uri="memory://",
+)
 
 
 class User(UserMixin):
@@ -77,6 +76,13 @@ def login_form():
 def login():
     username = request.form.get("username")
     password = request.form.get("password")
+
+    if not username_regex(username):
+        return "Wrong username", 400
+
+    if not password_regex(password):
+        return "Wrong password", 400
+
     user = user_loader(username)
     if user is None:
         delay()
@@ -111,6 +117,12 @@ def register():
     password = request.form.get('password')
     confirm_password = request.form.get('confirm_password')
 
+    if not username_regex(username):
+        return "Username can only contain letters, digits or underscore and can contain no more than 32 characters", 400
+
+    if not password_regex(password):
+        return "Password contains forbidden characters or is too long", 400
+
     if confirm_password != password:
         return "Password must match confirmation password", 400
 
@@ -126,8 +138,13 @@ def register():
     salt = get_random_string(16)
     hashed = sha256_crypt.using(rounds=sha256_rounds, salt=salt).hash(password)
 
-    sql.execute("INSERT INTO user (username, password_hashed) VALUES (?, ?);", (username, hashed))
-    db.commit()
+    try:
+        sql.execute("INSERT INTO user (username, password_hashed) VALUES (?, ?);", (username, hashed))
+        db.commit()
+    except:
+        return "Error when saving in database", 500
+    finally:
+        db.close()
 
     return redirect('/')
 
@@ -145,6 +162,7 @@ def profile():
 
         return render_template("profile.html", username=username, notes=notes)
 
+
 @app.route("/public_board", methods=['GET'])
 @login_required
 def public_board():
@@ -156,6 +174,7 @@ def public_board():
         notes = sql.fetchall()
 
         return render_template("public_board.html", notes=notes)
+
 
 @app.route("/render", methods=['POST'])
 @login_required
@@ -181,11 +200,16 @@ def render():
         rendered = encrypt(rendered, encryption_password)
 
     username = current_user.id
-
     db = sqlite3.connect(database_ref)
     sql = db.cursor()
-    sql.execute("INSERT INTO notes (username, content, is_public, is_encrypted) VALUES (?, ?, ?, ?)", (username, rendered, is_public, is_encrypted))
-    db.commit()
+
+    try:
+        sql.execute("INSERT INTO notes (username, content, is_public, is_encrypted) VALUES (?, ?, ?, ?)", (username, rendered, is_public, is_encrypted))
+        db.commit()
+    except:
+        return "Error when saving in database", 500
+    finally:
+        db.close()
 
     return render_template("markdown.html", rendered=clean(markdown.markdown(rendered), allowed_tags, allowed_attributes), is_encrypted=is_encrypted, note_id=sql.lastrowid)
 
@@ -199,7 +223,6 @@ def render_old(rendered_id):
     sql.execute("SELECT username, content, is_public, is_encrypted FROM notes WHERE id == ?", (rendered_id, ))
     try:
         username, rendered, is_public, is_encrypted = sql.fetchone()
-        print(rendered)
 
         if not is_public and username != current_user.id:
             return "Access to note forbidden", 403
@@ -220,20 +243,25 @@ if __name__ == "__main__":
     sql.execute("CREATE TABLE user (username VARCHAR(32), password_hashed VARCHAR(128));")
     sql.execute("DELETE FROM user;")
 
-    hashed = sha256_crypt.using(rounds=sha256_rounds, salt=get_random_string(16)).hash('2.Przeskok_Technologiczny')
+    hashed = sha256_crypt.using(rounds=sha256_rounds, salt=get_random_string(16)).hash('2.PrzeskokTechnologiczny')
     sql.execute("INSERT INTO user (username, password_hashed) VALUES ('bob', ?);", (hashed, ))
 
     sql.execute("DROP TABLE IF EXISTS notes;")
     sql.execute("CREATE TABLE notes (id INTEGER PRIMARY KEY, username VARCHAR(32), content BLOB, is_public BOOLEAN, is_encrypted BOOLEAN);")
     sql.execute("DELETE FROM notes;")
 
-    rendered = encrypt('To jest sektetny (bo encrypted) sekret!', "czekoladowy przysmak")
+    rendered = encrypt('To jest sektetny (bo encrypted) sekret!', "3Czekoladowe-Krążki")
     sql.execute("INSERT INTO notes (username, content, is_public, is_encrypted) VALUES ('bob', ?, 0, 1);", (rendered, ))
-    rendered = encrypt('To jest public encrypted!', "kto wie ten wie ;)")
+    rendered = encrypt('To jest public encrypted!', "Kto wie ten wi3 ;)")
     sql.execute("INSERT INTO notes (username, content, is_public, is_encrypted) VALUES ('bob', ?, 1, 1);", (rendered, ))
     sql.execute("INSERT INTO notes (username, content, is_public, is_encrypted) VALUES ('bob', 'To jest zwykły sekret!', 0, 0);")
     sql.execute("INSERT INTO notes (username, content, is_public, is_encrypted) VALUES ('bob', 'To jest public!', 1, 0);")
 
-    db.commit()
-    db.close()
+    try:
+        db.commit()
+    except:
+        print("Error when saving in database")
+    finally:
+        db.close()
+
     print("Finished initializing database!")

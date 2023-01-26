@@ -11,6 +11,7 @@
   <br>
   <label for="encryption_password">Password if encrypted: </label>
   <input type="password" id="encryption_password" name="encryption_password">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <br>
   <input type="submit" value="Submit">
 </form>

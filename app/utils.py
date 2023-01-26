@@ -1,4 +1,5 @@
 import string
+from re import search
 from threading import Event
 
 from Crypto.Random import random
@@ -14,6 +15,11 @@ modulo_char = max_char - min_char
 prime_number = 17
 char_step = 3
 
+database_ref = "./sqlite3.db"
+sha256_rounds = 643346
+pbkdf2_rounds = 1111111
+allowed_tags = ['p', 'br', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'strong', 'em', 'a', 'img']
+allowed_attributes = {'a': ['href', 'title'], 'img': ['src', 'alt']}
 
 def get_random_string(length):
     chars = string.ascii_letters + string.digits + './'
@@ -85,3 +91,11 @@ def verify_password_strength(password):
 
 def delay(time=2):
     Event().wait(timeout=time)
+
+
+def username_regex(username):
+    return bool(search(r'^\w+$', username)) and len(username) <= 32
+
+
+def password_regex(password):
+    return bool(search(r'^[\w `~!@#$%^&*()\\_+\-={}\[\]\'";|:?/>.<,]+$', password)) and len(password) <= 128

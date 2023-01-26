@@ -7,6 +7,7 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 from password_strength import PasswordStats
 
+
 min_char = 32
 max_char = 127
 modulo_char = max_char - min_char

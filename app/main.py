@@ -1,12 +1,14 @@
+import os
+import sqlite3
+import markdown
 from flask import Flask, render_template, request, redirect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-import markdown
 from passlib.hash import sha256_crypt
-import sqlite3
 from bleach import clean
 from utils import *
+
 
 app = Flask(__name__)
 
@@ -20,7 +22,11 @@ limiter = Limiter(
     storage_uri="memory://",
 )
 
-app.secret_key = "206363ef77d567cc511df5098695d2b85058952afd5e2b1eecd5aed981805e60"
+app.secret_key = os.getenv('APP_SECRET_KEY')
+
+# for local testing only
+if app.secret_key is None:
+    app.secret_key = "206363ef77d567cc511df5098695d2b85058952afd5e2b1eecd5aed981805e60"
 
 database_ref = "./sqlite3.db"
 sha256_rounds = 643346
@@ -164,6 +170,9 @@ def render():
     encryption_password = request.form.get("encryption_password")
     if encryption_password is not None and encryption_password != "":
         is_encrypted = 1
+        validation_problem = verify_password_strength(encryption_password)
+        if validation_problem is not None:
+            return validation_problem, 400
     else:
         is_encrypted = 0
 
@@ -188,9 +197,10 @@ def render_old(rendered_id):
     db = sqlite3.connect(database_ref)
     sql = db.cursor()
     sql.execute("SELECT username, content, is_public, is_encrypted FROM notes WHERE id == ?", (rendered_id, ))
-
     try:
         username, rendered, is_public, is_encrypted = sql.fetchone()
+        print(rendered)
+
         if not is_public and username != current_user.id:
             return "Access to note forbidden", 403
         password = request.form.get("encryption_password")
@@ -210,7 +220,7 @@ if __name__ == "__main__":
     sql.execute("CREATE TABLE user (username VARCHAR(32), password_hashed VARCHAR(128));")
     sql.execute("DELETE FROM user;")
 
-    hashed = sha256_crypt.using(rounds=sha256_rounds, salt=get_random_string(16)).hash('bob')
+    hashed = sha256_crypt.using(rounds=sha256_rounds, salt=get_random_string(16)).hash('2.Przeskok_Technologiczny')
     sql.execute("INSERT INTO user (username, password_hashed) VALUES ('bob', ?);", (hashed, ))
 
     sql.execute("DROP TABLE IF EXISTS notes;")
@@ -225,10 +235,5 @@ if __name__ == "__main__":
     sql.execute("INSERT INTO notes (username, content, is_public, is_encrypted) VALUES ('bob', 'To jest public!', 1, 0);")
 
     db.commit()
-    """
-    sql.execute("SELECT * FROM user")
-    print(sql.fetchall())
-    sql.execute("SELECT * FROM notes")
-    print(sql.fetchall())
-    """
-    app.run("0.0.0.0", 5000)
+    db.close()
+    print("Finished initializing database!")

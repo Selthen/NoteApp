@@ -6,6 +6,7 @@ RUN apt update -y
 RUN apt install python3 -y
 RUN apt install python3-pip -y
 RUN apt install nginx -y
+RUN apt install libnginx-mod-http-headers-more-filter -y
 
 COPY app/templates ./templates
 COPY app/main.py ./main.py
@@ -15,6 +16,7 @@ COPY requirements.txt ./requirements.txt
 
 COPY default /etc/nginx/sites-available/default
 COPY ssl/ /etc/ssl/
+COPY nginx.conf /etc/nginx/nginx.conf
 
 RUN python3 -m pip install -r requirements.txt
 RUN python3 main.py

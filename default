@@ -15,6 +15,8 @@ server {
 	listen [::]:443 ssl;
 	server_name localhost;
 
+    server_tokens off;
+
 	ssl_certificate /etc/ssl/localhost.crt;
 	ssl_certificate_key /etc/ssl/localhost.key;
 
